@@ -21,7 +21,7 @@ class MainApp extends StatelessWidget {
           primary: Colors.blue,
           secondary: Colors.blueAccent,
           surface: const Color(0xFF1E1E1E),
-          background: Colors.black,
+          surfaceContainerHighest: Colors.black,
         ),
       ),
       home: const ToxicityDetector(),
