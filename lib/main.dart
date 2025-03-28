@@ -41,7 +41,276 @@ class _ToxicityDetectorState extends State<ToxicityDetector> {
   String _result = '';
   bool _isCheckingToxicity = false;
   bool _isFetchingPost = false;
-  double _safetyThreshold = 0.005; // Default value as per the example
+  double _safetyThreshold = 0.005;
+  List<List<GridCell>> _grid = [];
+  bool _gameInitialized = false;
+
+  // Static list of phrases for the game (64 total)
+  final List<String> _gamePhrases = [
+    // Toxic phrases (20% = 13 phrases)
+    "FUCK OFF AND DIE!!!!!",
+    "I HATE YOU SO MUCH!!!!",
+    "YOU'RE A WORTHLESS PIECE OF S**T!!!!",
+    "GO TO HELL AND DIE!!!!",
+    "YOU MAKE ME SICK!!!!",
+    "I WISH YOU WERE DEAD!!!!",
+    "YOU'RE A DISGUSTING HUMAN!!!!",
+    "I HOPE YOU SUFFER!!!!",
+    "YOU DESERVE TO DIE!!!!",
+    "YOU'RE A WASTE OF LIFE!!!!",
+    "I WANT YOU TO DIE!!!!",
+    "YOU'RE PATHETIC!!!!",
+    "YOU'RE A HORRIBLE PERSON!!!!",
+    // Non-toxic phrases (80% = 51 phrases)
+    "The sun is shining brightly today.",
+    "I love spending time with my family.",
+    "Learning new things is exciting!",
+    "Music makes everything better.",
+    "Nature is beautiful and peaceful.",
+    "Friendship is a precious gift.",
+    "Smiling can brighten someone's day.",
+    "Kindness goes a long way.",
+    "Dreams give us hope for tomorrow.",
+    "Laughter is the best medicine.",
+    "Reading opens new worlds.",
+    "Art expresses the soul.",
+    "Science helps us understand life.",
+    "Travel broadens our horizons.",
+    "Exercise keeps us healthy.",
+    "Good food brings people together.",
+    "Pets bring joy to our lives.",
+    "Books are windows to the world.",
+    "Gardening is therapeutic.",
+    "Photography captures moments.",
+    "The weather is changing.",
+    "Time flies when you're busy.",
+    "Change is inevitable.",
+    "Life goes on.",
+    "Every day is different.",
+    "The world keeps turning.",
+    "Seasons come and go.",
+    "Time waits for no one.",
+    "Change is constant.",
+    "Life has its ups and downs.",
+    "The future is uncertain.",
+    "Time marches on.",
+    "Change brings growth.",
+    "Life is unpredictable.",
+    "The world is vast.",
+    "Time heals all wounds.",
+    "Change is necessary.",
+    "Life is what you make it.",
+    "The world is complex.",
+    "Time tells all.",
+    "Learning is a lifelong journey.",
+    "Success comes with effort.",
+    "Patience is a virtue.",
+    "Wisdom comes with age.",
+    "Experience teaches lessons.",
+    "Growth takes time.",
+    "Understanding brings peace.",
+    "Knowledge is power.",
+    "Effort leads to results.",
+    "Time reveals truth.",
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeGrid();
+  }
+
+  void _initializeGrid() {
+    _grid = List.generate(8, (i) => List.generate(8, (j) => GridCell()));
+    _gameInitialized = false;
+  }
+
+  Future<void> _startGame() async {
+    setState(() {
+      _isFetchingPost = true;
+    });
+
+    try {
+      // Create a list of indices for toxic phrases (5 ships: 4, 3, 3, 2, 2 blocks)
+      final toxicIndices = <int>[];
+
+      // Ship 1: 4 blocks (horizontal)
+      final ship1Start = Random().nextInt(8) * 8 + Random().nextInt(5);
+      for (int i = 0; i < 4; i++) {
+        toxicIndices.add(ship1Start + i);
+      }
+
+      // Ship 2: 3 blocks (vertical)
+      int ship2Start;
+      do {
+        ship2Start = Random().nextInt(6) * 8 + Random().nextInt(8);
+      } while (toxicIndices.contains(ship2Start) ||
+          toxicIndices.contains(ship2Start + 8) ||
+          toxicIndices.contains(ship2Start + 16));
+      toxicIndices.addAll([ship2Start, ship2Start + 8, ship2Start + 16]);
+
+      // Ship 3: 3 blocks (horizontal)
+      int ship3Start;
+      do {
+        ship3Start = Random().nextInt(8) * 8 + Random().nextInt(6);
+      } while (toxicIndices.contains(ship3Start) ||
+          toxicIndices.contains(ship3Start + 1) ||
+          toxicIndices.contains(ship3Start + 2));
+      toxicIndices.addAll([ship3Start, ship3Start + 1, ship3Start + 2]);
+
+      // Ship 4: 2 blocks (vertical)
+      int ship4Start;
+      do {
+        ship4Start = Random().nextInt(7) * 8 + Random().nextInt(8);
+      } while (toxicIndices.contains(ship4Start) ||
+          toxicIndices.contains(ship4Start + 8));
+      toxicIndices.addAll([ship4Start, ship4Start + 8]);
+
+      // Ship 5: 2 blocks (horizontal)
+      int ship5Start;
+      do {
+        ship5Start = Random().nextInt(8) * 8 + Random().nextInt(7);
+      } while (toxicIndices.contains(ship5Start) ||
+          toxicIndices.contains(ship5Start + 1));
+      toxicIndices.addAll([ship5Start, ship5Start + 1]);
+
+      // Create a list of non-toxic indices
+      final nonToxicIndices =
+          List.generate(
+            64,
+            (i) => i,
+          ).where((i) => !toxicIndices.contains(i)).toList();
+
+      // Shuffle both lists
+      nonToxicIndices.shuffle(Random());
+
+      // Place phrases on the grid
+      for (int i = 0; i < 8; i++) {
+        for (int j = 0; j < 8; j++) {
+          final index = i * 8 + j;
+          final isToxic = toxicIndices.contains(index);
+          final content =
+              isToxic
+                  ? _gamePhrases[toxicIndices.indexOf(index)]
+                  : _gamePhrases[13 + nonToxicIndices.indexOf(index)];
+
+          setState(() {
+            _grid[i][j] = GridCell(
+              content: content,
+              toxicity:
+                  isToxic
+                      ? 1.0
+                      : 0.0, // Set initial toxicity based on placement
+              isRevealed: false,
+            );
+          });
+        }
+      }
+
+      setState(() {
+        _gameInitialized = true;
+        _isFetchingPost = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isFetchingPost = false;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error initializing game: $e')));
+    }
+  }
+
+  Future<double> _checkToxicityForContent(String content) async {
+    try {
+      final initialResponse = await http.post(
+        Uri.parse(
+          'https://duchaba-friendly-text-moderation.hf.space/call/fetch_toxicity_level',
+        ),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'data': [content, _safetyThreshold],
+        }),
+      );
+
+      if (initialResponse.statusCode != 200) {
+        throw Exception(
+          'Failed to check toxicity: ${initialResponse.statusCode}',
+        );
+      }
+
+      final initialData = json.decode(initialResponse.body);
+      final eventId = initialData['event_id'];
+
+      int attempts = 0;
+      while (attempts < 10) {
+        await Future.delayed(const Duration(seconds: 1));
+
+        final resultResponse = await http.get(
+          Uri.parse(
+            'https://duchaba-friendly-text-moderation.hf.space/call/fetch_toxicity_level/$eventId',
+          ),
+        );
+
+        if (resultResponse.statusCode == 200) {
+          final lines = resultResponse.body.split('\n');
+          for (var line in lines) {
+            if (line.startsWith('data: ')) {
+              final data = line.substring(6);
+              if (data.startsWith('[')) {
+                final jsonData = json.decode(data);
+                if (jsonData is List && jsonData.length > 1) {
+                  final jsonString = jsonData[1];
+                  if (jsonString is String) {
+                    final analysis = json.decode(jsonString);
+                    return analysis['max_value'] as double;
+                  }
+                }
+              }
+            }
+          }
+        }
+        attempts++;
+      }
+      throw Exception('Timeout checking toxicity');
+    } catch (e) {
+      return 0.0; // Default to non-toxic on error
+    }
+  }
+
+  void _revealCell(int row, int col) async {
+    if (!_gameInitialized) return;
+
+    // First reveal the content and show loading state
+    setState(() {
+      _grid[row][col] = _grid[row][col].copyWith(
+        isRevealed: true,
+        isChecking: true,
+      );
+    });
+
+    try {
+      // Check toxicity using API
+      final toxicity = await _checkToxicityForContent(_grid[row][col].content);
+
+      setState(() {
+        _grid[row][col] = _grid[row][col].copyWith(
+          toxicity: toxicity,
+          isChecking: false,
+        );
+      });
+    } catch (e) {
+      setState(() {
+        _grid[row][col] = _grid[row][col].copyWith(
+          toxicity: 0.0, // Default to non-toxic on error
+          isChecking: false,
+        );
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error checking toxicity: $e')));
+    }
+  }
 
   Future<void> _fetchRandomPost() async {
     setState(() {
@@ -279,80 +548,208 @@ class _ToxicityDetectorState extends State<ToxicityDetector> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Text Toxicity Detector')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: _textController,
-              maxLines: 10,
-              decoration: const InputDecoration(
-                hintText: 'Enter text to check for toxicity...',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Text('Safety Threshold: '),
-                Expanded(
-                  child: Slider(
-                    value: _safetyThreshold,
-                    min: 0.001,
-                    max: 0.1,
-                    divisions: 99,
-                    label: _safetyThreshold.toStringAsFixed(3),
-                    onChanged: (value) {
+      appBar: AppBar(
+        title: const Text('Text Toxicity Detector'),
+        actions:
+            _gameInitialized
+                ? [
+                  IconButton(
+                    icon: const Icon(Icons.visibility),
+                    onPressed: () {
+                      // Reveal all unrevealed cells
+                      for (int i = 0; i < 8; i++) {
+                        for (int j = 0; j < 8; j++) {
+                          if (!_grid[i][j].isRevealed) {
+                            _revealCell(i, j);
+                          }
+                        }
+                      }
+                    },
+                    tooltip: 'Reveal All',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.refresh),
+                    onPressed: () {
                       setState(() {
-                        _safetyThreshold = value;
+                        _gameInitialized = false;
+                        _initializeGrid();
                       });
                     },
+                    tooltip: 'New Game',
+                  ),
+                ]
+                : null,
+      ),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (!_gameInitialized) ...[
+                TextField(
+                  controller: _textController,
+                  maxLines: 10,
+                  decoration: const InputDecoration(
+                    hintText: 'Enter text to check for toxicity...',
+                    border: OutlineInputBorder(),
                   ),
                 ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Text('Safety Threshold: '),
+                    Expanded(
+                      child: Slider(
+                        value: _safetyThreshold,
+                        min: 0.001,
+                        max: 0.1,
+                        divisions: 99,
+                        label: _safetyThreshold.toStringAsFixed(3),
+                        onChanged: (value) {
+                          setState(() {
+                            _safetyThreshold = value;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed:
+                            (_isCheckingToxicity || _isFetchingPost)
+                                ? null
+                                : _checkToxicity,
+                        child:
+                            _isCheckingToxicity
+                                ? const CircularProgressIndicator()
+                                : const Text('Check Toxicity'),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed:
+                            (_isCheckingToxicity || _isFetchingPost)
+                                ? null
+                                : _fetchRandomPost,
+                        child:
+                            _isFetchingPost
+                                ? const CircularProgressIndicator()
+                                : const Text('Random Post'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                if (_result.isNotEmpty) ...[
+                  const Text(
+                    'Result:',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(_result, style: const TextStyle(fontSize: 16)),
+                ],
+                const SizedBox(height: 32),
               ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed:
-                        (_isCheckingToxicity || _isFetchingPost)
-                            ? null
-                            : _checkToxicity,
-                    child:
-                        _isCheckingToxicity
-                            ? const CircularProgressIndicator()
-                            : const Text('Check Toxicity'),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed:
-                        (_isCheckingToxicity || _isFetchingPost)
-                            ? null
-                            : _fetchRandomPost,
-                    child:
-                        _isFetchingPost
-                            ? const CircularProgressIndicator()
-                            : const Text('Random Post'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            if (_result.isNotEmpty) ...[
               const Text(
-                'Result:',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                'Toxic Text Battleship',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 8),
-              Text(_result, style: const TextStyle(fontSize: 16)),
+              const SizedBox(height: 16),
+              if (!_gameInitialized)
+                ElevatedButton(
+                  onPressed: _isFetchingPost ? null : _startGame,
+                  child:
+                      _isFetchingPost
+                          ? const CircularProgressIndicator()
+                          : const Text('Start Game'),
+                ),
+              const SizedBox(height: 16),
+              if (_gameInitialized)
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 8,
+                    childAspectRatio: 1,
+                    crossAxisSpacing: 4,
+                    mainAxisSpacing: 4,
+                  ),
+                  itemCount: 64,
+                  itemBuilder: (context, index) {
+                    final row = index ~/ 8;
+                    final col = index % 8;
+                    final cell = _grid[row][col];
+                    return GestureDetector(
+                      onTap: () => _revealCell(row, col),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color:
+                              cell.isRevealed
+                                  ? (cell.isChecking
+                                      ? Colors.grey[600]
+                                      : (cell.toxicity > 0.5
+                                          ? Colors.red
+                                          : Colors.lightBlue))
+                                  : Colors.grey[800],
+                          border: Border.all(color: Colors.white24),
+                        ),
+                        child:
+                            cell.isRevealed
+                                ? Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Expanded(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(4.0),
+                                        child: Text(
+                                          cell.content,
+                                          style: const TextStyle(fontSize: 8),
+                                          textAlign: TextAlign.center,
+                                          maxLines: 3,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ),
+                                    if (cell.isChecking)
+                                      const Padding(
+                                        padding: EdgeInsets.only(bottom: 4.0),
+                                        child: SizedBox(
+                                          height: 12,
+                                          width: 12,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        ),
+                                      )
+                                    else
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 4.0,
+                                        ),
+                                        child: Text(
+                                          '${(cell.toxicity * 100).toStringAsFixed(1)}%',
+                                          style: const TextStyle(
+                                            fontSize: 8,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                )
+                                : null,
+                      ),
+                    );
+                  },
+                ),
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -362,5 +759,33 @@ class _ToxicityDetectorState extends State<ToxicityDetector> {
   void dispose() {
     _textController.dispose();
     super.dispose();
+  }
+}
+
+class GridCell {
+  final String content;
+  final double toxicity;
+  final bool isRevealed;
+  final bool isChecking;
+
+  GridCell({
+    this.content = '',
+    this.toxicity = 0.0,
+    this.isRevealed = false,
+    this.isChecking = false,
+  });
+
+  GridCell copyWith({
+    String? content,
+    double? toxicity,
+    bool? isRevealed,
+    bool? isChecking,
+  }) {
+    return GridCell(
+      content: content ?? this.content,
+      toxicity: toxicity ?? this.toxicity,
+      isRevealed: isRevealed ?? this.isRevealed,
+      isChecking: isChecking ?? this.isChecking,
+    );
   }
 }
